@@ -1,6 +1,7 @@
 package kamon.cloudwatch
 
 import com.typesafe.config.Config
+import kamon.util.Filter
 
 final case class Configuration(
     nameSpace: String,
@@ -10,7 +11,8 @@ final case class Configuration(
     serviceEndpoint: Option[String],
     includeEnvironmentTags: Boolean,
     awsAccessKeyId: Option[String],
-    awsSecretKey: Option[String]
+    awsSecretKey: Option[String],
+    filter: Option[Filter]
 )
 
 object Configuration {
@@ -25,6 +27,7 @@ object Configuration {
     val NumThreads             = "async-threads"
     val ServiceEndpoint        = "service-endpoint"
     val IncludeEnvironmentTags = "include-environment-tags"
+    val Filter                 = "filter.includes"
   }
 
   def fromConfig(topLevelCfg: Config): Configuration = {
@@ -42,6 +45,7 @@ object Configuration {
     val numThreads     = config.getInt(settings.NumThreads)
     val endpoint       = opt(settings.ServiceEndpoint, _.getString).filterNot(_.isEmpty)
     val includeEnvTags = opt(settings.IncludeEnvironmentTags, _.getBoolean).getOrElse(false)
+    val filter         = opt(settings.Filter, _.getConfig).map(p => Filter.from(p))
 
     Configuration(
       nameSpace,
@@ -51,7 +55,8 @@ object Configuration {
       endpoint,
       includeEnvTags,
       awsAccessKeyId,
-      awsSecretKey
+      awsSecretKey,
+      filter
     )
   }
 

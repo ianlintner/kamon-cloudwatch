@@ -2,19 +2,17 @@ package kamon.cloudwatch
 
 import java.time.Clock
 import java.util.concurrent.atomic.AtomicReference
-
 import com.typesafe.config.Config
-
 import kamon.Kamon
-import kamon.module.{ModuleFactory, MetricReporter}
+import kamon.module.{MetricReporter, ModuleFactory}
 import kamon.metric.PeriodSnapshot
 import kamon.tag.TagSet
-
+import kamon.util.Filter
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 
 final class CloudWatchModuleFactory extends ModuleFactory {
   private[this] val logger = LoggerFactory.getLogger(classOf[MetricsShipper].getPackage.getName)
@@ -53,10 +51,26 @@ final class CloudWatchReporter private[cloudwatch] (cfg: Configuration, clock: C
     }
   }
 
+  def filterMetrics(snapshot: PeriodSnapshot, filter: Option[Filter]): PeriodSnapshot = {
+    filter match {
+      case Some(f) => {
+        snapshot.copy(
+          gauges = snapshot.gauges.filter(p => f.accept(p.name)),
+          histograms = snapshot.histograms.filter(p => f.accept(p.name)),
+          counters = snapshot.counters.filter(p => f.accept(p.name)),
+          timers = snapshot.timers.filter(p => f.accept(p.name)),
+          rangeSamplers = snapshot.rangeSamplers.filter(p => f.accept(p.name))
+        )
+      }
+      case _ => snapshot
+    }
+  }
+
   override def reportPeriodSnapshot(snapshot: PeriodSnapshot): Unit = {
     val config = configuration.get
+
     val metrics = datums(
-      snapshot,
+      filterMetrics(snapshot, config.filter),
       CloudWatchReporter.environmentTags(config)
     ).grouped(config.batchSize)
 
